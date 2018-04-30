@@ -356,19 +356,27 @@ class Distribution(Distribution_parse_config_files, _Distribution):
         self.src_root = attrs.pop("src_root", None)
         self.patch_missing_pkg_info(attrs)
         self.project_urls = attrs.get('project_urls', {})
+        self.long_description_content_type = attrs.pop(
+            'long_description_content_type', None
+        )
         self.dependency_links = attrs.pop('dependency_links', [])
         self.setup_requires = attrs.pop('setup_requires', [])
         for ep in pkg_resources.iter_entry_points('distutils.setup_keywords'):
             vars(self).setdefault(ep.name, None)
         _Distribution.__init__(self, attrs)
 
+        #  Note for extra meta options below; self.metadata isn't
+        # setup till *after* the parent __init__() call above
+
         # The project_urls attribute may not be supported in distutils, so
         # prime it here from our value if not automatically set
         self.metadata.project_urls = getattr(
             self.metadata, 'project_urls', self.project_urls)
-        self.metadata.long_description_content_type = attrs.get(
-            'long_description_content_type'
-        )
+
+        self.metadata.long_description_content_type = getattr(
+            self.metadata, 'long_description_content_type',
+            self.long_description_content_type)
+
         self.metadata.provides_extras = getattr(
             self.metadata, 'provides_extras', set()
         )

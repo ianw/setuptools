@@ -1,7 +1,8 @@
 import contextlib
 import pytest
 from distutils.errors import DistutilsOptionError, DistutilsFileError
-from setuptools.dist import Distribution
+from mock import patch
+from setuptools.dist import Distribution, _Distribution
 from setuptools.config import ConfigHandler, read_configuration
 
 
@@ -581,3 +582,29 @@ class TestOptions:
 
         with get_dist(tmpdir) as dist:
             assert dist.entry_points == expected
+
+class TestExternalSetters:
+    # During creation of the setuptools Distribution() object, we call
+    # the init of the parent distutils Distribution object via
+    # _Distribution.__init__ ().
+    #
+    # It's possible distutils calls out to various keyword
+    # implementations (i.e. distutils.setup_keywords entry points)
+    # that may set a range of variables.
+    #
+    # This wraps distutil's Distribution.__init__ and simulates
+    # something during that call setting the
+    # "long_description_content_type", which we check is correctly
+    # copied by the trailing parts of the setuptools __init__ into the
+    # dist.metadata field.
+    saved_init = _Distribution.__init__
+    def _fake_distribution_init(self, dist, attrs):
+        self.saved_init(dist, attrs)
+        dist.long_description_content_type = 'text/something'
+        return None
+
+    @patch.object(_Distribution, '__init__', autospec=True)
+    def test_external_setters(self,  mock_parent_init, tmpdir):
+        mock_parent_init.side_effect = self._fake_distribution_init
+        dist = Distribution({})
+        assert dist.metadata.long_description_content_type == 'text/something'
